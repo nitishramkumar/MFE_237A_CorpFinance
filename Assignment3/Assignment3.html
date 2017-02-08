@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<style type="text/css">
+
+pre{background-color: white;}
+pre:not([class]) {background-color: white;}
+code{white-space: pre;}
+span{font-color: green,font-size: smaller}
+
+h1 { font-size:17pt; text-align:center; color:black; }
+h2 { font-size:14pt; text-align:left; color:black; }
+h3 { font-size:11pt; text-align:left; color:black; }
+h4 { font-size: 18px;}
+h5 { font-size: 16px;}
+h6 { font-size: 12px;}
+.table th:not([align]) { text-align: left;}
+
+a { text-decoration:none; color:#3284bf; }
+a:hover { text-decoration:underline; }
+
+hr.fat { background-color:black; height:4px; }
+hr { background-color:black; height:1px; }
+li { margin-top: 1em; }	
+
+p.notice { background-color:white; font-size:10pt; border:solid black 5px; }
+
+caption { color:brown; text-decoration:underline; font-size:9pt; }
+td { padding-left:1em; padding-right:1em; }
+th { text-decoration:underline }
+table { margin-left:2em; }
+
+p.boxright { width:355px; margin-right:0px; background-color:white; font-size:10pt; float:right; padding:20px; font-size:large; vertical-align:top; }
+
+dt.big { line-height:3; font-size:large; font-weight:bolder; font-family:sans-serif;margin-top:12pt }
+dt.hili { font-size:large; font-family:Cursive; display:inline; text-decoration:underline; padding-top:1em; }
+dt.smallbold { font-size:small; font-family:Cursive; display:inline; font-weight:bold; }
+dd { margin-bottom:1ex }
+
+td.hili { font-size:x-large; font-family:cursive; margin:20px; vertical-align:top }
+
+div.smallnobox { width:400pt; font-size:smaller; margin:10px; }
+div.smallbox { width:400pt; font-size:smaller; margin:10px; border:solid black 1px; }
+
+.boxquote {float: left; text-align: center; border: solid black 1px;font-family: Times, sans-serif; font-size: 12pt; margin: 10px;}
+
+td.googler { vertical-align:bottom; color:green; font-size:x-large}
+
+.small { font-size:smaller; }
+.right { text-align:right; }
+
+body { font-family: 'Oxygen', Verdana, serif; margin:2em; background-color: #F0F0F0; }
+
+div.explain { font-size:smaller; margin-left:40px; margin-right:40px; margin-bottom:10px; }
+
+
+summary::-webkit-details-marker {
+    color: #00ACF3;
+    font-size: 125%;
+    margin-right: 2px;
+}
+
+summary:focus {	outline-style: none; }
+article { margin-left:1em; }
+article > details > summary { font-size: 28px; margin-top: 32px; }
+article > details > summary.link { font-size: 28px; margin-top: 32px; text-decoration:underine; }
+details > p { margin-left: 36px; background-color:#f0f0f0; }
+details > div { margin-left: 36px; background-color:#f0f0f0; }
+
+details details { margin-left: 48px; }
+details details summary { font-size: 16px; }
+</style>
+
+</head>
+
+<body>
+
+<!-- code folding -->
+
+<div class="fluid-row" id="header">
+
+
+<h1 class="title toc-ignore">Corporate Finance Assignment 3</h1>
+<h4 class="author"><em>Nitish Ramkumar</em></h4>
+
+</div>
+
+
+<p>We can retrieve data from WRDS using the <strong>CRSPQ.MSF</strong> for monthly returns and <strong>CRSPQ.DSENAMES</strong> for historical ticker and cusip names.</p>
+<p>Sample Data from MSF and DSENAMES are as follows.</p>
+<pre><code>
+<table>
+   <tr><th>DATE</th><th>CUSIP</th><th>PERMNO</th><th>MARKETCAP</th><th>RET</th></tr>
+   <tr><td>1986-03-31</td><td>68391610</td><td>10000</td><td>16330.000</td><td>0.36538461</td></tr>
+   <tr><td>1986-03-31</td><td>36720410</td><td>10001</td><td>6217.812</td><td>0.02520000</td></tr>
+   <tr><td>1986-03-31</td><td>05978R10</td><td>10002</td><td>16670.312</td><td>0.07075471</td></tr></table></code></pre>
+<pre><code>
+<table>
+  <tr><th>PERMNO</th><th>NAMEDT</th><th>NAMEENDT</th><th>CUSIP</th><th>TICKER</th></tr>
+  <tr><td>10001</td><td>1986-01-09</td><td>1993-11-21</td><td>36720410</td><td>GFGC</td></tr>    
+  <tr><td>10001</td><td>1993-11-22</td><td>2004-06-09</td><td>36720410</td><td>EWST</td></tr>    
+  <tr><td>10001</td><td>2004-06-10</td><td>2004-10-18</td><td>36720410</td><td>EWST</td></tr></table>
+</code></pre>
+<p>Now, we can annualize the data returns and join it with the <strong>DSENAMES</strong> file to get the necessary returns. <strong>Dplyr</strong> provides very quick ways of formatting and manipulating the data. In this case, we need to group based on year, then aggregate returns and market cap. After that, it is joined with the stock names data to get CUSIP and ticker.</p>
+<p>Sample data is as follows</p>
+<pre><code>
+<table>
+   <tr><th>date</th><th>PERMNO</th><th>CUSIP</th><th>TICKER</th><th>AnnualReturn</th><th>MarketCap</th></tr>
+   <tr><td>1992-12-31</td><td>10001</td><td>36720410</td><td>GFGC</td><td>0.012620466</td><td>7049.32292</td></tr>
+   <tr><td>1993-12-31</td><td>10001</td><td>36720410</td><td>GFGC</td><td>0.367997827</td><td>-93.70833</td></tr>
+   <tr><td>1993-12-31</td><td>10001</td><td>36720410</td><td>EWST</td><td>0.367997827</td><td>-93.70833</td></tr>
+   <tr><td>1994-12-31</td><td>10001</td><td>36720410</td><td>EWST</td><td>-0.090928294</td><td>6172.62500</td></tr></table>
+</code></pre>
+<p><strong>R Code</strong></p>
+<pre class="r"><code>
+<font color="green">#DATA RETRIEVAL</font>
+sql.stockdata &lt;- &quot;SELECT date, CUSIP, PERMNO, (PRC*SHROUT) AS MARKETCAP, RET FROM CRSPQ.MSF ORDER BY PERMNO,date&quot;
+sql.stocknames &lt;- &quot;SELECT PERMNO, NAMEDT, NAMEENDT, CUSIP,TICKER FROM CRSPQ.DSENAMES&quot;
+stock.data &lt;- getData(sql.stockdata)
+stock.names &lt;- getData(sql.stocknames)
+
+<font color="green">#CONVERT DATA INTO ANNUAL AND GET TICKER</font>
+
+stock.annualReturns &lt;- stock.data %&gt;%mutate(year = format(as.Date(DATE), &quot;%Y&quot;)) %&gt;% group_by(PERMNO,year) %&gt;% do(data.frame(AnnualReturn = prod(1+.$RET,na.rm = TRUE)-1,MarketCap = mean(.$MARKETCAP))) %&gt;% mutate(date = as.Date(paste(year,&quot;12&quot;,&quot;31&quot;,sep = &quot;/&quot;)))
+
+stock.annualReturns.WithTicker &lt;- stock.annualReturns %&gt;% left_join(stock.names) %&gt;% filter((date&gt;=as.Date(NAMEDT) &amp; date &lt;= as.Date(NAMEENDT)) | (as.Date(paste(year,&quot;01&quot;,&quot;01&quot;,sep = &quot;/&quot;)) &gt;=as.Date(NAMEDT) &amp; as.Date(paste(year,&quot;01&quot;,&quot;01&quot;,sep = &quot;/&quot;)) &lt;= as.Date(NAMEENDT)))
+
+stock.annualReturns.WithTicker.Final &lt;- as.data.frame(stock.annualReturns.WithTicker)[,c(&quot;date&quot;,&quot;PERMNO&quot;,&quot;CUSIP&quot;,&quot;TICKER&quot;,&quot;AnnualReturn&quot;,&quot;MarketCap&quot;)] </code></pre>
+
+
+
+
+</div>
+
+
+</body>
+</html>

@@ -1,0 +1,81 @@
+---
+title: "Assignment3"
+author: "Nitish Ramkumar"
+date: "January 31, 2017"
+output: html_document
+---
+```{r echo=FALSE}
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+```
+
+We can retrieve data from WRDS using the **CRSPQ.MSF** for monthly returns and **CRSPQ.DSENAMES** for historical ticker and cusip names. 
+
+```{r cache=TRUE, echo=FALSE}
+#DATA RETRIEVAL
+sql.stockdata <- "SELECT date, CUSIP, PERMNO, (PRC*SHROUT) AS MARKETCAP, RET FROM CRSPQ.MSF ORDER BY PERMNO,date"
+sql.stocknames <- "SELECT PERMNO, NAMEDT, NAMEENDT, CUSIP,TICKER FROM CRSPQ.DSENAMES"
+stock.data <- getData(sql.stockdata)
+stock.names <- getData(sql.stocknames)
+```
+
+Sample Data from MSF and DSENAMES are as follows.  
+```{r echo=FALSE, cache=TRUE}
+head(stock.data[stock.data$DATE == '1986-03-31',],n=3)
+head(stock.names[stock.names$PERMNO == 10001,],n=3)
+```
+
+Now, we can annualize the data returns and join it with the **DSENAMES** file to get the necessary returns. **Dplyr** provides very quick ways of formatting and manipulating the data. In this case, we need to group based on year, then aggregate returns and market cap. After that, it is joined with the stock names data to get CUSIP and ticker.  
+
+```{r echo=FALSE, cache=TRUE}
+#CONVERT DATA INTO ANNUAL AND GET TICKER
+suppressWarnings(library(dplyr))
+
+stock.annualReturns <- stock.data %>%mutate(year = format(as.Date(DATE), "%Y")) %>% group_by(PERMNO,year) %>% do(data.frame(AnnualReturn = prod(1+.$RET,na.rm = TRUE)-1,MarketCap = mean(.$MARKETCAP))) %>% mutate(date = as.Date(paste(year,"12","31",sep = "/")))
+
+stock.annualReturns.WithTicker <- stock.annualReturns %>% left_join(stock.names) %>% filter((date>=as.Date(NAMEDT) & date <= as.Date(NAMEENDT)) | (as.Date(paste(year,"01","01",sep = "/")) >=as.Date(NAMEDT) & as.Date(paste(year,"01","01",sep = "/")) <= as.Date(NAMEENDT)))
+
+stock.annualReturns.WithTicker.Final <- as.data.frame(stock.annualReturns.WithTicker)[,c("date","PERMNO","CUSIP","TICKER","AnnualReturn","MarketCap")] 
+```
+
+Sample data is as follows 
+
+```{r cache=TRUE, echo=FALSE}
+head(stock.annualReturns.WithTicker.Final[stock.annualReturns.WithTicker.Final$PERMNO == 10001,],n=10)
+
+
+```
+  
+  
+**R Code**  
+```{r eval=FALSE}
+#DATA RETRIEVAL
+sql.stockdata <- "SELECT date, CUSIP, PERMNO, (PRC*SHROUT) AS MARKETCAP, RET FROM CRSPQ.MSF ORDER BY PERMNO,date"
+sql.stocknames <- "SELECT PERMNO, NAMEDT, NAMEENDT, CUSIP,TICKER FROM CRSPQ.DSENAMES"
+stock.data <- getData(sql.stockdata)
+stock.names <- getData(sql.stocknames)
+
+#CONVERT DATA INTO ANNUAL AND GET TICKER
+
+stock.annualReturns <- stock.data %>%mutate(year = format(as.Date(DATE), "%Y")) %>% group_by(PERMNO,year) %>% do(data.frame(AnnualReturn = prod(1+.$RET,na.rm = TRUE)-1,MarketCap = mean(.$MARKETCAP,na.rm = TRUE))) %>% mutate(date = as.Date(paste(year,"12","31",sep = "/")))
+
+stock.annualReturns.WithTicker <- stock.annualReturns %>% left_join(stock.names) %>% filter((date>=as.Date(NAMEDT) & date <= as.Date(NAMEENDT)) | (as.Date(paste(year,"01","01",sep = "/")) >=as.Date(NAMEDT) & as.Date(paste(year,"01","01",sep = "/")) <= as.Date(NAMEENDT)))
+
+stock.annualReturns.WithTicker.Final <- as.data.frame(stock.annualReturns.WithTicker)[,c("date","PERMNO","CUSIP","TICKER","AnnualReturn","MarketCap")] 
+```
+
+
+
+
+
