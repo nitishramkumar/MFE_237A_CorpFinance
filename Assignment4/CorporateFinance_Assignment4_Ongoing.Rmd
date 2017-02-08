@@ -1,0 +1,51 @@
+---
+title: "Corporate Finance Assignment"
+author: "Nitish Ramkumar"
+output: pdf_document
+---
+```{r echo=FALSE}
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+```
+
+
+```{r echo=FALSE}
+#RetainedEarnings
+ccmfundq
+
+sql2 <- "SELECT RDQ AS Date,OANCFY AS OperatingCF,IVNCFY AS InvestingCF,FINCFY AS FinancingCF, DLCQ AS CurrentDebt, DLTTQ AS LongTermDebt, ATQ AS TotalAssets, SEQQ AS CommonEq, PSTKQ AS LiquidationVal 
+FROM COMPM.FUNDQ WHERE gvkey = '012141'"
+dummy1 <- getData(sql2)
+
+sql1 <- "SELECT * FROM CRSPA.CCMFUNDQ WHERE LPERMNO='10000'"
+
+RDQ
+
+  REUNAQ
+
+#CashFlow
+OANCFY
+IVNCFY
+FINCFY
+
+#Debt
+DLCQ
+DLTTQ
+
+#Assets
+#book value
+SEQQ
+PSTKQ
+
+ATQ
