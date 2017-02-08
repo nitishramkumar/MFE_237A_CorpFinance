@@ -1,0 +1,105 @@
+---
+title: "Corporate Finance Assignment2"
+author: "Nitish Ramkumar"
+output: html_document
+---
+```{r echo=FALSE}
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+```
+
+Initially we should retrieve all the dividend distribution events which happened in year 2012. The CRSP file containing this data is **CRSQ.DSEDIST**
+
+```{r}
+#Stock divdiend distribution Event Data
+date.eventYear <- 2012
+
+sql.stockDividendEvents <- paste0("SELECT permno,distcd,divamt,dclrdt,exdt,rcrddt,paydt FROM CRSPQ.DSEDIST WHERE year(paydt) = ",date.eventYear) 
+
+stock.dividendEvents <- getData(sql.stockDividendEvents)
+#we need only dividend events
+stock.dividendEvents <- stock.dividendEvents[floor(stock.dividendEvents$DISTCD/1000) %in% c(1,2,5),]
+stock.dividendEvents$DCLRDT <- as.Date(stock.dividendEvents$DCLRDT)
+stock.dividendEvents$EXDT <- as.Date(stock.dividendEvents$EXDT)
+stock.dividendEvents$RCRDDT <- as.Date(stock.dividendEvents$RCRDDT)
+stock.dividendEvents$PAYDT <- as.Date(stock.dividendEvents$PAYDT)
+```
+
+A sample of the data retrieved is as below.
+```{r echo=FALSE}
+head(stock.dividendEvents)
+```
+
+Now, the stock returns needs to be retrieved in order to find a possible trend of returns around the dividend payment date. At the same time, the daily SP500 return is retrieved and subtracted from the stock returns to get excess returns.  
+Stock data can be found in file **CRSPQ.DSF**  
+
+```{r}
+#Stock Returns
+suppressMessages(library(lubridate))
+date.StartPeriod <-  as.Date(min(stock.dividendEvents$PAYDT)) %m+% months(-6)
+date.EndPeriod <- as.Date(max(stock.dividendEvents$PAYDT)) %m+% months(6)
+
+sql.stockReturns <- paste0("SELECT permno,date,retx,(retx-vwretx) AS excessRet FROM CRSPQ.DSF dsf INNER JOIN CRSPQ.DSP500 sp ON dsf.date = sp.caldt WHERE date between '",format(date.StartPeriod,"%d%b%Y"),"'d AND '",format(date.EndPeriod,"%d%b%Y"),"'d AND permno IN (",paste0(stock.dividendEvents$PERMNO,collapse = ","),")")
+
+stock.Returns <- getData(sql.stockReturns)
+stock.Returns$DATE <- as.Date(stock.Returns$DATE)
+```
+
+Sample of stock data returns retrieved is as below.
+```{r echo=FALSE}
+head(stock.Returns)
+```
+
+Now, the mean returns at various relative dates from dividend payment is calculated. For example, for relative date 0, mean of all returns on the actual dividend payment date is calculated. Similar calculation is done for relative dates from -20 to 20.    
+
+```{r}
+library(reshape2)
+stockReturnsMat <- dcast(stock.Returns,DATE~PERMNO,value.var="excessRet")
+
+stock.allDividendReturns <- matrix(ncol= 2)
+
+for(compNo in colnames(stockReturnsMat)[-1]){
+  allDividendDatesForCo <- stock.dividendEvents[stock.dividendEvents$PERMNO == compNo,"EXDT"]
+  allStockInfo <- stockReturnsMat[,c("DATE",as.character(compNo))]
+  dividendPositions <- sapply(allDividendDatesForCo,function(x){which(allStockInfo$DATE == x)})
+  for(divPos in dividendPositions){
+    if(length(divPos)>0){
+                 return <- apply(matrix(-20:20,nrow = 41),1,function(x){allStockInfo[divPos+x,2]})
+                stock.allDividendReturns <- rbind(stock.allDividendReturns,cbind(-20:20,return))
+      }
+    }
+  }
+
+stock.meanEventBasedReturns <- c()
+for(count in -20:20){
+  countReturns <- stock.allDividendReturns[as.numeric(stock.allDividendReturns[,1]) == count,2]
+  stock.meanEventBasedReturns[count + 21]  <- mean(countReturns[which(!is.na(countReturns))])
+}
+
+```
+
+The graph of the mean returns against the relative date is as below.
+
+```{r echo=FALSE}
+plot(-20:20,stock.meanEventBasedReturns,xlab="Relative days from dividend payment",ylab="Daily returns",main = "Change in excess returns based on dividend distribution")
+
+lines(-20:20,stock.meanEventBasedReturns)
+
+```
+
+i) The returns tend to fall on ex-dividend date (T=0). This will be due to the fact that on the ex-dividend date(generally 2 days before recording date, which in turn might be few days or a week before payment date), no new owner will receive the next dividend. This reduces the incentive to pay the premium price to buy the stock. Also, on this day, dividends will be removed from the price, which reduces the returns  
+  
+ii) The return roughly increases until after the ex-dividend date, the returns increase. This might be because the market found the dividend distribution as a sign of company strength
+
+
