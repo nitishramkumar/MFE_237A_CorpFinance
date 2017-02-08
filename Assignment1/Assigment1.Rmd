@@ -1,0 +1,184 @@
+---
+title: "Corporate Finance Assignment1"
+author: "Nitish Ramkumar"
+output: html_document
+---
+
+Let us construct a function **getData()** which will be used to access WRDS and retrieve the data from it
+```{r}
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+
+```
+  
+**STOCK RETURNS**  
+  
+We can use the method to get the daily SP500 returns and convert it into a xts object
+```{r}
+#DAILY
+sql.dailyreturns <- "SELECT caldt, vwretd FROM CRSPQ.DSP500 WHERE year(caldt) >= 1973 AND year(caldt) < 2015"
+sp500.dailyreturns <- getData(sql.dailyreturns)
+
+#Get Time Series
+options(warn=-1)
+suppressMessages(library(zoo))
+suppressWarnings(library(xts))
+options(warn=0)
+sp500.dailyreturns$caldt <- as.Date(sp500.dailyreturns$caldt)
+sp500.dailyreturns <- xts(sp500.dailyreturns[,-1],order.by = sp500.dailyreturns$caldt)
+colnames(sp500.dailyreturns) <- "vwretd"
+```
+
+We can use this daily returns and convert it into monthly, annually and 5-yearly data. The data is maintained in xts objects.
+```{r}
+#MONTHLY
+sp500.monthlyreturns <- apply.monthly(1+sp500.dailyreturns,FUN=prod) - 1
+
+#ANNUALLY
+sp500.annualreturns <- apply.yearly(1+sp500.dailyreturns,FUN=prod) - 1
+
+#5YEARLY
+#split data into 5 year sets
+fiveyearsplit <- split(1+sp500.annualreturns[,1],f = "years",k=5)
+#get endpoints of these sets
+fiveyearEndpoints <- lapply(lapply(fiveyearsplit, index),max)
+#calculate the 5 year returns for each set
+sp500.5yearreturns <- do.call(rbind,lapply(fiveyearsplit, prod))
+#combine 4 year returns and endpoints. Remove first one, as it had only 2 years in the set
+sp500.5yearreturns <- xts(sp500.5yearreturns[-1,]-1,as.Date(unlist(fiveyearEndpoints[-1])))
+colnames(sp500.5yearreturns) <- "vwretd"
+```
+
+Now, that we have generated the data for daily, monthly, annually and 5-yearly SP500 returns, we can calculate the aithmetic and geometric mean.
+
+```{r}
+buildOutputMatrix <- function(daily,monthly,annual,fiveYear){
+  returnsMatrix <- matrix(ncol= 2,nrow = 4)
+  colnames(returnsMatrix) <- c("Arithmetic Mean","Geometric Mean")
+  row.names(returnsMatrix) <- c("Daily","Monthly","Annually","5 Yearly")
+  
+  #daily
+  returnsMatrix["Daily",1] <- sprintf("%.4f%%", 100*mean(daily$vwretd))
+  returnsMatrix["Daily",2] <- sprintf("%.4f%%", 100*(prod(1+daily$vwretd)^(1/length(daily$vwretd))-1))
+  
+  
+  #monthly
+  returnsMatrix["Monthly",1] <- sprintf("%.4f%%", 100*mean(monthly$vwretd))
+  returnsMatrix["Monthly",2] <- sprintf("%.4f%%",100*(prod(1+monthly$vwretd)^(1/length(monthly$vwretd))-1))
+  
+  #yearly
+  returnsMatrix["Annually",1] <- sprintf("%.4f%%", 100*mean(annual$vwretd))
+  returnsMatrix["Annually",2] <- sprintf("%.4f%%", 100*(prod(1+annual$vwretd)^(1/length(annual$vwretd))-1))
+  
+  #5year
+  returnsMatrix["5 Yearly",1] <- sprintf("%.4f%%", 100*mean(fiveYear$vwretd))
+  returnsMatrix["5 Yearly",2] <- sprintf("%.4f%%", 100*(prod(1+fiveYear$vwretd)^(1/length(fiveYear$vwretd))-1))
+  
+  returnsMatrix
+  
+}
+
+
+######CALCULATE STOCK MEANS######
+buildOutputMatrix(sp500.dailyreturns,sp500.monthlyreturns,sp500.annualreturns,sp500.5yearreturns)
+```
+
+**TREASURY DATA**  
+  
+We can get the 1-day, 1 month, 1 year and 5 year treasury rates from CRSP.  
+  
+The daily data can be retrieved from **CRSP.TFZ_DLY_RF2**. The number of daily Rates from CRSP doesn't match the daily SP500 returns. So we need to clean it up, or use the Fama French risk free rate from CRSP. The code below has both the methods, but the cleaned up data from CRSP has been used for future calculations.
+
+```{r}
+CleanupRatesDaily <- function(sp500.dailyreturns,rates.daily){
+  mergedData <- merge.xts(sp500.dailyreturns,rates.daily,join = "left")
+  na.approx(mergedData)
+}
+
+##DAILY
+sql.dailyRates <- "SELECT caldt,tdyld,tdduratn FROM CRSP.TFZ_DLY_RF2 WHERE year(caldt)>=1973 AND year(caldt) < 2015 AND kytreasnox = 2000061"
+rates.daily <- getData(sql.dailyRates)
+
+rates.daily$CALDT <- as.Date(rates.daily$CALDT)
+rates.daily$TDYLD <- (1+rates.daily$TDYLD)^(1/rates.daily$TDDURATN) - 1
+rates.daily <- xts(rates.daily$TDYLD,order.by = rates.daily$CALDT)
+colnames(rates.daily) <- "rate"
+##the number of daily Rates from CRSP doesn't match the daily SP500 returns.
+## Few of the reasons are i) Some Public holidays have data in SP500, but not in CRSP daily rate 
+# The number of days from the CRSP treasury file doesn't match the number of days in SP500.
+# instead of using the cleanedup data, we can also use the FF risk free rate
+#sql.dailyRates1 <- "SELECT date,rf,mktrf FROM ff.FACTORS_DAILY WHERE year(date) >= 1973 AND year(date) < 2015"
+#rates.daily1 <- getData(sql.dailyRates1)
+
+returns.rates.combineddaily <- CleanupRatesDaily(sp500.dailyreturns , rates.daily)
+```
+
+We can get clean monthly treasury rate data from **CRSP.TFZ_MTH_RF2**.
+```{r}
+##MONTHLY
+sql.monthlyRates <- "SELECT mcaldt,tmyld FROM CRSP.TFZ_MTH_RF2 WHERE year(mcaldt)>=1973 AND year(mcaldt) < 2015 AND kytreasnox = 2000061"
+rates.monthly <- getData(sql.monthlyRates)
+```
+
+The annual and 5-year treasury rates can be retrieved from the CTI files( in this case ACTI is used). This contains T-bill and bond returns for various maturities on a yearly basis.
+
+```{r}
+#ANNUAL AND 5 year RATES
+sqlRates <- "SELECT caldt,b1ret,b5ret FROM CRSP.ACTI WHERE year(caldt) >= 1973 AND year(caldt) < 2015"
+rates <- getData(sqlRates)
+rates$caldt <- as.Date(rates$caldt)
+rates <- xts(rates[,-1],order.by = rates$caldt)
+
+rates.1year <- rates$b1ret
+
+fiveyrateSplit <- split(rates,f = "years",k=5)
+fiveyearlyPoints <- lapply(lapply(fiveyrateSplit, index),max)
+fiveyearlyDates <- as.Date(unlist(fiveyearlyPoints))
+rates.5year <- rates[fiveyearlyDates]$b5ret[-1,]
+```
+
+
+**EXCESS RETURNS**  
+  
+Now that we have retrieved the stock returns and treasury data, we can calculate the excess returns for the different time frames.
+
+```{r}
+#####EXCESS RETURNS######
+excess.dailyreturns <- returns.rates.combineddaily$vwretd - returns.rates.combineddaily$rate
+excess.monthlyreturns <- sp500.monthlyreturns$vwretd - rates.monthly$TMYLD
+excess.annualreturns <- sp500.annualreturns$vwretd - rates.1year
+excess.5yearreturns <- sp500.5yearreturns$vwretd - rates.5year
+
+buildOutputMatrix(excess.dailyreturns,excess.monthlyreturns,excess.annualreturns,excess.5yearreturns)
+```
+  
+As the interest rates aren't very high, the return on the self financing portfolios (borrow at prevailing interest rates, and use it to fund the stock purchase) isn't too different from the only stock investment.  
+Also if we overlap the time horizon of borrowing and SP500 investment, we would invest on 5 consecutive 1 year bonds and take a product of the rates. If this compounded rate is higher the 5 year rate, then it would be worth overlapping the time periods
+
+```{r}
+yearto5yearsplit <- split(1+rates.1year,f = "years",k=5)
+#get endpoints of these sets
+yearto5yearsplitPoints <- lapply(lapply(yearto5yearsplit, index),max)
+#calculate the 5 year returns for each set
+yearto5year <- do.call(rbind,lapply(yearto5yearsplit, prod))
+#combine 4 year returns and endpoints. Remove first one, as it had only 2 years in the set
+rates.yearto5year <- xts(yearto5year[-1,]-1,as.Date(unlist(yearto5yearsplitPoints[-1])))
+colnames(sp500.5yearreturns) <- "vwretd"
+
+rates.5year - rates.yearto5year
+```
+As it can be seen, it is not worth overlapping the time period of the rates. This can be explained by the fact that by re-financing it every year for 5 years, there is a risk that the rate will increase. 
+
+
+
