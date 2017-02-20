@@ -1,0 +1,212 @@
+---
+title: "Corporate Finance Assignment 5"
+author: "Nitish Ramkumar"
+output: html_document
+---
+#Assignment 2
+
+When I compare the final graph between both mine and Ian's work, I am noticing very similar values, especially for returns at time 0.
+
+```{r echo=FALSE}
+load("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment2/total_data_withIan.RData")
+
+plot(-20:20,stock.meanEventBasedReturns,xlab="Relative days from dividend payment",ylab="Daily returns",main = "Change in excess returns based on dividend distribution")
+lines(-20:20,stock.meanEventBasedReturns)
+
+lines(y=mean_vals,x=-20:20,col="green")
+
+legend("bottomleft",lty=c(1,1), col=c("black","green"),c("My graph","Ian'graph"))
+```
+
+###Dataset building
+To compare the data, lets create a dataset including PERMNO,YYYYMMDD,RET0 for both solutions
+```{r echo=FALSE, cache=TRUE}
+
+#My solution
+datasetForComparison_1 <- data.frame(CompNo=character(),Date=as.Date(character()),Ret0=numeric(),stringsAsFactors = FALSE)
+for(compNo in colnames(stockReturnsMat)[-1]){
+  allDividendDatesForCo <- stock.dividendEvents[stock.dividendEvents$PERMNO == compNo,"EXDT"]
+  allStockInfo <- stockReturnsMat[,c("DATE",as.character(compNo))]
+  dividendPositions <- sapply(allDividendDatesForCo,function(x){which(allStockInfo$DATE == x)})
+  for(divPos in dividendPositions){
+    if(length(divPos)>0){
+          #PERMNO,Date,RET0 dataset
+          newRow <- data.frame(CompNo=compNo,Date=as.Date(allStockInfo[divPos,1]),Ret0=allStockInfo[divPos,2],stringsAsFactors = FALSE)
+          datasetForComparison_1 <- rbind(datasetForComparison_1,newRow)           
+      
+      }
+    }
+  }
+
+#Ian Solution
+datasetForComparison_2 <- data.frame(CompNo=character(),Date=as.Date(character()),Ret0=numeric(),stringsAsFactors = FALSE)
+for (m in 1:(ncol(S_reshaped) -1)){
+  a=div_data[div_data$PERMNO==col_names[m],]
+  a1=stocks[stocks$PERMNO==col_names[m],] ##specific stock returns...
+  ##workable solution for only one stock on one day.. now try all days..
+  for (j in 1:length(a$EXDT)){##iterates over all the dividend dates
+    e=rownames(sp500[sp500$caldt==a$EXDT[j],])
+    if(length(e)>0){
+      e = as.numeric(e)
+      f =a1$RETX[e]-sp500$vwretd[e]
+      Newdata <- data.frame(CompNo=col_names[m],Date=as.Date(a$EXDT[j]),Ret0=f,stringsAsFactors = FALSE)
+      datasetForComparison_2=rbind(datasetForComparison_2,Newdata)
+    }
+  }
+}
+
+datasetForComparison_1$Date <- format(datasetForComparison_1$Date,"%Y%m%d")
+datasetForComparison_2$Date <- format(datasetForComparison_2$Date,"%Y%m%d")
+
+suppressMessages(library(dplyr))
+joined_data_1 <- datasetForComparison_2 %>% mutate(CompNo = as.character(CompNo)) %>% left_join(datasetForComparison_1,c("CompNo","Date"))
+head(joined_data_1)
+```
+
+###Comparison analysis
+
+1) One difference which is obvious from the WRDS SQL query is that I have used vwretx of DSP500 to get risk free rate, whereas Ian has used vwretd for risk free rate. This should explain small differences on the daily 0th day returns. 
+
+2) There are also lesser number of dividend dates in my list than Ian's. This is because 
+
+i) I have added an extra constraint while retrieving data out of DSEDIST, which is to take only distributions which have code = 1,2,5. These codes explicitly tell that the distribution are dividends.  
+  
+ii) Also to filter to year 2012, I have used payment date of dividends, where as Ian has used ex-dividend date.
+
+3) If I compare the returns from the constructed datasets, I can see that for PERMNO < 13100 or PERMNO > 13500, the values seem very close between both the datasets
+
+```{r echo=FALSE}
+suppressMessages(library(dplyr))
+joined_data_1 %>% 
+  filter(as.numeric(CompNo) < 13100 | as.numeric(CompNo) > 13500) %>% 
+  plot(Ret0.x~Ret0.y,.,type="l",main="Plot between my Ret0 returns and Ian's (permno excluding 13100-13500)")
+```
+
+
+But for PERMNO between 13100 and 13500, there is a huge difference
+```{r echo=FALSE}
+joined_data_1 %>% 
+  filter(as.numeric(CompNo) >= 13100 & as.numeric(CompNo) <= 13500) %>% 
+  plot(Ret0.x~Ret0.y,.,type="l",main="Plot between my Ret0 returns and Ian's (permno:13100-13500)")
+
+filtered_join_data_1 <- joined_data_1 %>% filter(as.numeric(CompNo) > 13100 & as.numeric(CompNo) < 13500) %>% na.omit
+
+stockRetFiltered_1 <- stock.Returns[stock.Returns$PERMNO > 13100 &  stock.Returns$PERMNO < 13500,c("PERMNO","DATE","excessRet")]%>%arrange(PERMNO,DATE)%>%filter(PERMNO==13117)
+stockRetFiltered_2 <- stocks[stocks$PERMNO > 13100 &  stocks$PERMNO < 13500,c("PERMNO","DATE","RETX")]%>%arrange(PERMNO,DATE)%>%filter(PERMNO==13117)
+```
+
+I have checked the dividend excluded returns retrieved for CRSP for these stocks and they are the same. So the difference is due to an error in processing of these returns.  
+  
+###Reconciliation
+1) Make sure same returns out of CRSP are used.
+2) Follow similar practices for NA and null handling to avoid calculation differences.
+
+###Learnings
+1) Comment all possible assumptions which were made in order to make it easy for others to find out differences, without having to go through the code completely.  
+  
+###R Code  
+```{r eval=FALSE}
+load("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment2/total_data_withIan.RData")
+
+plot(-20:20,stock.meanEventBasedReturns,xlab="Relative days from dividend payment",ylab="Daily returns",main = "Change in excess returns based on dividend distribution")
+lines(-20:20,stock.meanEventBasedReturns)
+
+lines(y=mean_vals,x=-20:20,col="green")
+
+legend("bottomleft",lty=c(1,1), col=c("black","green"),c("My graph","Ian'graph"))
+
+###Dataset building
+
+#My solution
+datasetForComparison_1 <- data.frame(CompNo=character(),Date=as.Date(character()),Ret0=numeric(),stringsAsFactors = FALSE)
+for(compNo in colnames(stockReturnsMat)[-1]){
+  allDividendDatesForCo <- stock.dividendEvents[stock.dividendEvents$PERMNO == compNo,"EXDT"]
+  allStockInfo <- stockReturnsMat[,c("DATE",as.character(compNo))]
+  dividendPositions <- sapply(allDividendDatesForCo,function(x){which(allStockInfo$DATE == x)})
+  for(divPos in dividendPositions){
+    if(length(divPos)>0){
+          #PERMNO,Date,RET0 dataset
+          newRow <- data.frame(CompNo=compNo,Date=as.Date(allStockInfo[divPos,1]),Ret0=allStockInfo[divPos,2],stringsAsFactors = FALSE)
+          datasetForComparison_1 <- rbind(datasetForComparison_1,newRow)           
+      
+      }
+    }
+  }
+
+
+#Ian Solution
+datasetForComparison_2 <- data.frame(CompNo=character(),Date=as.Date(character()),Ret0=numeric(),stringsAsFactors = FALSE)
+for (m in 1:(ncol(S_reshaped) -1)){
+  a=div_data[div_data$PERMNO==col_names[m],]
+  a1=stocks[stocks$PERMNO==col_names[m],] ##specific stock returns...
+  ##workable solution for only one stock on one day.. now try all days..
+  for (j in 1:length(a$EXDT)){##iterates over all the dividend dates
+    e=rownames(sp500[sp500$caldt==a$EXDT[j],])
+    if(length(e)>0){
+      e = as.numeric(e)
+      f =a1$RETX[e]-sp500$vwretd[e]
+      Newdata <- data.frame(CompNo=col_names[m],Date=as.Date(a$EXDT[j]),Ret0=f,stringsAsFactors = FALSE)
+      datasetForComparison_2=rbind(datasetForComparison_2,Newdata)
+    }
+  }
+}
+
+datasetForComparison_1$Date <- format(datasetForComparison_1$Date,"%Y%m%d")
+datasetForComparison_2$Date <- format(datasetForComparison_2$Date,"%Y%m%d")
+
+suppressMessages(library(dplyr))
+joined_data_1 <- datasetForComparison_2 %>% mutate(CompNo = as.character(CompNo)) %>% left_join(datasetForComparison_1,c("CompNo","Date"))
+head(joined_data_1)
+
+###Comparison analysis
+
+joined_data_1 %>% 
+  filter(as.numeric(CompNo) < 13100 | as.numeric(CompNo) > 13500) %>% 
+  plot(Ret0.x~Ret0.y,.,type="l",main="Plot between my Ret0 returns and Ian's (permno excluding 13100-13500)")
+
+joined_data_1 %>% 
+  filter(as.numeric(CompNo) >= 13100 & as.numeric(CompNo) <= 13500) %>% 
+  plot(Ret0.x~Ret0.y,.,type="l",main="Plot between my Ret0 returns and Ian's (permno:13100-13500)")
+
+filtered_join_data_1 <- joined_data_1 %>% filter(as.numeric(CompNo) > 13100 & as.numeric(CompNo) < 13500) %>% na.omit
+
+stockRetFiltered_1 <- stock.Returns[stock.Returns$PERMNO > 13100 &  stock.Returns$PERMNO < 13500,c("PERMNO","DATE","excessRet")]%>%arrange(PERMNO,DATE)%>%filter(PERMNO==13117)
+stockRetFiltered_2 <- stocks[stocks$PERMNO > 13100 &  stocks$PERMNO < 13500,c("PERMNO","DATE","RETX")]%>%arrange(PERMNO,DATE)%>%filter(PERMNO==13117)
+
+#ASSIGNMENT 3
+
+###Dataset building
+
+suppressMessages(library(dplyr))
+suppressMessages(library(lubridate))
+load("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment2/total_data_withForrest.RData")
+
+dataSetForComparision2_1 <- stock.annualReturns.WithTicker.Final %>% filter( PERMNO %/% 100 == 100 & date>='2013-01-01' & date<'2015-01-01')%>%select(PERMNO,date,AnnualReturn,MarketCap)
+dataSetForComparision2_1$date <- as.numeric(format(dataSetForComparision2_1$date,"%Y%m%d"))
+
+raw[,"Year"] <- paste0(raw[,"Year"],"12","31")
+raw[,"PERMNO"] <- as.numeric(raw[,"PERMNO"])
+raw[,"Year"] <- as.numeric(raw[,"Year"])
+raw[,"Return"] <- as.numeric(raw[,"Return"])
+raw[,"Market Cap"] <- as.numeric(raw[,"Market Cap"])
+dataSetForComparision2_2 <- raw[,c("PERMNO","Year","Return","Market Cap")]
+dataSetForComparision2_2 <- apply(dataSetForComparision2_2,2,unlist)
+dataSetForComparision2_2 <- dataSetForComparision2_2[dataSetForComparision2_2[,"PERMNO"]%/%100==100,]
+dataSetForComparision2_2 <- data.frame(dataSetForComparision2_2,stringsAsFactors = FALSE,row.names = NULL)
+colnames(dataSetForComparision2_2) <- c("PERMNO","date","AnnualReturn","MarketCap")
+
+joined <- dataSetForComparision2_1 %>% inner_join(dataSetForComparision2_2,by = c("PERMNO","date"))
+head(joined)
+
+###Comparison Analysis
+plot(joined$AnnualReturn.x~joined$AnnualReturn.y,xlab="Forrest Val",ylab = "My val",main="Annualized returns comparison")
+abline(0,1,col="green")
+
+plot(joined$MarketCap.x*1000~joined$MarketCap.y,xlab="Forrest Val",ylab = "My val",xlim=c(30000000,1598000000),main="Annualized Marketcap value")
+abline(0,1,col="green")
+
+```
+
+
+
+
