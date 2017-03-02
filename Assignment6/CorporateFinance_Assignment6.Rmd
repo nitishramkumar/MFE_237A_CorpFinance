@@ -1,0 +1,209 @@
+---
+title: "Corporate Finance Assignment 6"
+author: "Nitish Ramkumar"
+output: html_document
+---
+#TASK
+Produce a figure with E/P on the y-axis, and (the 3-year average of the) lagged change in percent earnings on the x-axis. Truncate both X and Y at the 10th and 90th quantiles. Also, scrape Yahoo!Finance to do it as of this moment.
+
+```{r echo=FALSE}
+library(rJava)
+options(java.parameters = '-Xmx4g')
+library(RJDBC)
+  
+sasPath <- "C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers"
+sasCore <- paste0(sasPath, "\\sas.core.jar")
+sasDriver <- paste0(sasPath, "\\sas.intrnet.javatools.jar")
+.jinit()
+.jaddClassPath(c(sasCore, sasDriver))
+drv <- JDBC("com.sas.net.sharenet.ShareNetDriver", sasDriver, identifier.quote="")
+wrds <- dbConnect(drv, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+```
+
+#WRDS Data
+All necessary data can be retrieved out of Compustat file **COMPM.FUNDA**. The Earnings are found in the *NI* column and E/P ratio can be calculated using *NI* (Earnings in millions), *PRCC_F* (Price) and *CSHO* (No. of Shares in millions) columns.    
+    
+  EP Ratio = $\frac{Earnings}{Price * Total No. of shares}$  
+
+Sample of the data table retrived from WRDS for MSFT stock is as below
+```{r echo=FALSE}
+suppressMessages(library(dplyr))
+suppressMessages(library(xts))
+sql.fundamentals <- "SELECT GVKEY AS GVKEY, DATADATE AS Date,NI as Earnings,
+                            PRCC_F as Price,CSHO As NoOfShares
+                            FROM COMPM.FUNDA funda"
+fundamentals <- getData(sql.fundamentals)
+fundamentals%>%filter(GVKEY=="012141")%>%filter(complete.cases(.))%>%tail
+```
+
+Now we can use *dplyr* to group data according to *GVKey* and then calculate 3 year averged lagged earnings based on that. Sample of the formatted data for MSFT stock:
+```{r echo=FALSE}
+fund.formatted <- fundamentals%>%filter(complete.cases(.))%>%
+                  mutate(Date=as.Date(Date))%>%
+                  group_by(GVKEY)%>%
+                  mutate(EPRatio = Earnings/(Price*NoOfShares),
+                         EarnPerc = (Earnings - lag(Earnings))/lag(Earnings),
+                         LagEarnTot = (EarnPerc + lag(EarnPerc) + lag(EarnPerc,2))/3)%>%
+                  filter(!is.na(LagEarnTot))%>%
+                  select(GVKEY,Date,EPRatio,LagEarnTot)
+
+fund.formatted%>%filter(GVKEY=="012141")%>%tail
+```
+
+Then we can filter out the bottom and top quantile by using the *quantile* R function. The plot of the resulting data is:
+```{r echo=FALSE}
+topBotQuantile <- apply(fund.formatted%>%ungroup%>%select(EPRatio,LagEarnTot),2,
+                        function(x){quantile(x,c(0.1,0.9))})
+
+fund.formatted.trunc <- fund.formatted%>%filter(EPRatio > topBotQuantile["10%","EPRatio"] &
+                                                EPRatio < topBotQuantile["90%","EPRatio"] &
+                                                LagEarnTot > topBotQuantile["10%","LagEarnTot"] &
+                                                LagEarnTot < topBotQuantile["90%","LagEarnTot"])
+
+plot(fund.formatted.trunc$EPRatio~fund.formatted.trunc$LagEarnTot,cex=0.1,pch=".",main="Plot between E/P and 3 year lagged earnings",xlab="3 year lagged earnings avg.(in mil)",ylab="E/P")
+
+```
+
+As can be seen, the most of the points are densely populated above the 0 E/P mark. This matches what we learned in class (comparing E/P and growth value)   
+
+#YAHOO
+
+There are various ways of scraping yahoo for the live data. The *quotes.csv* provided by yahoo can be used to download the data and use it for plotting the graphs. This can be requested for all present tickers (this information can be got out of CRSP). The requests have to be batched into group of 500 to make sure it doesn't fail.    
+After removing the N/A values and filtering off the top and bottom quantile, the resultant graph is:
+```{r echo=FALSE}
+setwd("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment6")
+sql.StockTicker <- "SELECT DISTINCT(ticker) FROM CRSPA.STOCKNAMES WHERE nameenddt ='30Dec2016'd"
+stockTickers <- getData(sql.StockTicker)
+
+Completedata <- data.frame()
+seq <- c(seq(1,nrow(stockTickers),by = 500),nrow(stockTickers))
+for(Maxcount in 2:length(seq)){
+  Maxcount <- 3
+  stockTickers.str <- paste0(trimws(stockTickers$TICKER[seq[Maxcount-1]:seq[Maxcount]-1]),collapse = "+")
+  yahoo.URL <- paste0("http://finance.yahoo.com/d/quotes.csv?s=",stockTickers.str,"&f=re")
+  download.file(yahoo.URL,"quotes.csv",mode="wb",quiet = TRUE)
+  data <- read.csv("quotes.csv",header = FALSE,stringsAsFactors = FALSE)
+  Completedata <- rbind(Completedata,data)
+}
+
+colnames(Completedata) <- c("PERatio","EPS")
+Completedata.formatted <- Completedata%>%filter(PERatio!="N/A" & EPS!="N/A")%>%
+                                        mutate(EPRatio = 1/as.numeric(PERatio),
+                                               EPS = as.numeric(EPS))
+
+topBotQuantile <- apply(Completedata.formatted%>%select(EPRatio,EPS),2,
+                        function(x){quantile(x,c(0.1,0.9))})
+
+Completedata.trunc <- Completedata.formatted%>%filter(EPRatio > topBotQuantile["10%","EPRatio"] &
+                                                EPRatio < topBotQuantile["90%","EPRatio"] &
+                                                EPS > topBotQuantile["10%","EPS"] &
+                                                EPS < topBotQuantile["90%","EPS"])
+
+
+plot(Completedata.trunc$EPRatio~Completedata.trunc$EPS,cex=0.5,main="Yahoo finance live plot between E/P and EPS",xlab="EPS",ylab="E/P")
+```
+
+#R Code
+```{r eval=FALSE}
+library(rJava)
+options(java.parameters = '-Xmx4g')
+library(RJDBC)
+  
+sasPath <- "C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers"
+sasCore <- paste0(sasPath, "\\sas.core.jar")
+sasDriver <- paste0(sasPath, "\\sas.intrnet.javatools.jar")
+.jinit()
+.jaddClassPath(c(sasCore, sasDriver))
+drv <- JDBC("com.sas.net.sharenet.ShareNetDriver", sasDriver, identifier.quote="")
+wrds <- dbConnect(drv, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+
+#WRDS
+sql.fundamentals <- "SELECT GVKEY AS GVKEY, DATADATE AS Date,NI as Earnings,
+                            PRCC_F as Price,CSHO As NoOfShares
+                            FROM COMPM.FUNDA funda"
+fundamentals <- getData(sql.fundamentals)
+head(fundamentals)
+
+suppressMessages(library(dplyr))
+suppressMessages(library(xts))
+
+fund.formatted <- fundamentals%>%filter(complete.cases(.))%>%
+                  mutate(Date=as.Date(Date))%>%
+                  group_by(GVKEY)%>%
+                  mutate(EPRatio = Earnings/(Price*NoOfShares),
+                         EarnPerc = (Earnings - lag(Earnings))/lag(Earnings),
+                         LagEarnTot = (EarnPerc + lag(EarnPerc) + lag(EarnPerc,2))/3)%>%
+                  filter(!is.na(LagEarnTot))%>%
+                  select(GVKEY,Date,EPRatio,LagEarnTot)
+
+fund.formatted%>%filter(GVKEY=="012141")%>%tail
+
+topBotQuantile <- apply(fund.formatted%>%ungroup%>%select(EPRatio,LagEarnTot),2,
+                        function(x){quantile(x,c(0.1,0.9))})
+
+fund.formatted.trunc <- fund.formatted%>%filter(EPRatio > topBotQuantile["10%","EPRatio"] &
+                                                EPRatio < topBotQuantile["90%","EPRatio"] &
+                                                LagEarnTot > topBotQuantile["10%","LagEarnTot"] &
+                                                LagEarnTot < topBotQuantile["90%","LagEarnTot"])
+
+plot(fund.formatted.trunc$EPRatio~fund.formatted.trunc$LagEarnTot,cex=0.1,pch=".",main="Plot between E/P and 3 year lagged earnings",xlab="3 year lagged earnings avg.",ylab="E/P")
+
+#YAHOO
+setwd("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment6")
+sql.StockTicker <- "SELECT DISTINCT(ticker) FROM CRSPA.STOCKNAMES WHERE nameenddt ='30Dec2016'd"
+stockTickers <- getData(sql.StockTicker)
+
+Completedata <- data.frame()
+seq <- c(seq(1,nrow(stockTickers),by = 500),nrow(stockTickers))
+for(Maxcount in 2:length(seq)){
+  Maxcount <- 3
+  stockTickers.str <- paste0(trimws(stockTickers$TICKER[seq[Maxcount-1]:seq[Maxcount]-1]),collapse = "+")
+  yahoo.URL <- paste0("http://finance.yahoo.com/d/quotes.csv?s=",stockTickers.str,"&f=re")
+  download.file(yahoo.URL,"quotes.csv",mode="wb",quiet = TRUE)
+  data <- read.csv("quotes.csv",header = FALSE,stringsAsFactors = FALSE)
+  Completedata <- rbind(Completedata,data)
+}
+
+colnames(Completedata) <- c("PERatio","EPS")
+Completedata.formatted <- Completedata%>%filter(PERatio!="N/A" & EPS!="N/A")%>%
+                                        mutate(EPRatio = 1/as.numeric(PERatio),
+                                               EPS = as.numeric(EPS))
+
+topBotQuantile <- apply(Completedata.formatted%>%select(EPRatio,EPS),2,
+                        function(x){quantile(x,c(0.1,0.9))})
+
+Completedata.trunc <- Completedata.formatted%>%filter(EPRatio > topBotQuantile["10%","EPRatio"] &
+                                                EPRatio < topBotQuantile["90%","EPRatio"] &
+                                                EPS > topBotQuantile["10%","EPS"] &
+                                                EPS < topBotQuantile["90%","EPS"])
+
+
+plot(Completedata.trunc$EPRatio~Completedata.trunc$EPS,cex=0.5,main="Yahoo finance live plot between E/P and EPS",xlab="EPS",ylab="E/P")
+
+```
