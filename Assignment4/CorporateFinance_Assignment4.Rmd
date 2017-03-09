@@ -1,0 +1,74 @@
+---
+title: "Corporate Finance Assignment 4"
+author: "Nitish Ramkumar"
+output: html_document
+---
+```{r echo=FALSE}
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+```
+  
+For the annual dataset on earnings, cashflows and leverage ratios, we should take the necessary fundamentals from **Compustat**. The file **COMPM.FUNDA** contains all the necessary information. The earnings and cashflow data from Compustat are in the units of millions.  
+  
+The following formulas were used for calculation of the required information.  
+  
+*Total Cashflow = Operating Cashflow + Investing Cashflow + Financing Cashflow*  
+  
+*Market Leverage Ratio = (Current Debt + Long term debt)/Total Assets*  
+  
+*Book Leverage Ratio = (Current Debt + Long term Debt)/(Current Debt + Long term debt + Common Equity)*  
+  
+*Earnings = Net Income*  
+  
+**Sample of the resultant data**
+```{r echo=FALSE}
+#data from WRDS
+sql.fundamentals <- "SELECT GVKEY AS GVKEY, DATADATE AS Date,OANCF AS OperatingCF,
+                            IVNCF AS InvestingCF,FINCF AS FinancingCF,NI as Earnings,
+                            DLC AS CurrentDebt, DLTT AS LongTermDebt, 
+                            AT AS TotalAssets, SEQ AS CommonEq, PSTK AS LiquidationVal 
+                            FROM COMPM.FUNDA funda"
+fundamentals <- getData(sql.fundamentals)
+
+sql.permnoLink <- "SELECT GVKEY,LPERMNO FROM CRSPA.CCMXPF_LINKTABLE"
+permnoLink <- getData(sql.permnoLink)
+
+suppressMessages(library(dplyr))
+
+#Use dplyr to format data and join with link table to get permno
+fundamental.formatted <- fundamentals %>% filter(complete.cases(.)) %>% mutate(CFInMil = OperatingCF + InvestingCF + FinancingCF, marketLRatio = (CurrentDebt+LongTermDebt)/TotalAssets, bookLRatio = (CurrentDebt+LongTermDebt)/(CurrentDebt+LongTermDebt+CommonEq))%>%select(GVKEY,Date,CFInMil,EarningsInMil = Earnings,marketLRatio,bookLRatio)
+
+fundamental.formatted %>% left_join(permnoLink %>% na.omit(),by= c("GVKEY"="gvkey")) %>% head
+```
+  
+  
+**R Code**
+```{r eval=FALSE}
+sql.fundamentals <- "SELECT GVKEY AS GVKEY, DATADATE AS Date,OANCF AS OperatingCF,
+                            IVNCF AS InvestingCF,FINCF AS FinancingCF,NI as Earnings,
+                            DLC AS CurrentDebt, DLTT AS LongTermDebt, 
+                            AT AS TotalAssets, SEQ AS CommonEq, PSTK AS LiquidationVal 
+                            FROM COMPM.FUNDA funda"
+fundamentals <- getData(sql.fundamentals)
+
+sql.permnoLink <- "SELECT GVKEY,LPERMNO FROM CRSPA.CCMXPF_LINKTABLE"
+permnoLink <- getData(sql.permnoLink)
+
+suppressWarnings(library(dplyr))
+
+fundamental.formatted <- fundamentals %>% filter(complete.cases(.)) %>% mutate(cashflowInMil = OperatingCF + InvestingCF + FinancingCF, marketLRatio = (CurrentDebt+LongTermDebt)/TotalAssets, bookLRatio = (CurrentDebt+LongTermDebt)/(CurrentDebt+LongTermDebt+CommonEq))%>%select(GVKEY,Date,cashflowInMil,EarningsInMil = Earnings,marketLRatio,bookLRatio)
+
+fundamental.formatted %>% left_join(permnoLink %>% na.omit(),by= c("GVKEY"="gvkey")) %>% head
+
+```

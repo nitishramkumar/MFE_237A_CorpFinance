@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<style type="text/css">
+
+pre{background-color: white;}
+pre:not([class]) {background-color: white;}
+code{white-space: pre;}
+span{font-color: green,font-size: smaller}
+
+h1 { font-size:17pt; text-align:center; color:black; }
+h2 { font-size:14pt; text-align:left; color:black; }
+h3 { font-size:11pt; text-align:left; color:black; }
+h4 { font-size: 18px;}
+h5 { font-size: 16px;}
+h6 { font-size: 12px;}
+.table th:not([align]) { text-align: left;}
+
+a { text-decoration:none; color:#3284bf; }
+a:hover { text-decoration:underline; }
+
+hr.fat { background-color:black; height:4px; }
+hr { background-color:black; height:1px; }
+li { margin-top: 1em; }	
+
+p.notice { background-color:white; font-size:10pt; border:solid black 5px; }
+
+caption { color:brown; text-decoration:underline; font-size:9pt; }
+td { padding-left:1em; padding-right:1em; }
+th { text-decoration:underline }
+table { margin-left:2em; }
+
+p.boxright { width:355px; margin-right:0px; background-color:white; font-size:10pt; float:right; padding:20px; font-size:large; vertical-align:top; }
+
+dt.big { line-height:3; font-size:large; font-weight:bolder; font-family:sans-serif;margin-top:12pt }
+dt.hili { font-size:large; font-family:Cursive; display:inline; text-decoration:underline; padding-top:1em; }
+dt.smallbold { font-size:small; font-family:Cursive; display:inline; font-weight:bold; }
+dd { margin-bottom:1ex }
+
+td.hili { font-size:x-large; font-family:cursive; margin:20px; vertical-align:top }
+
+div.smallnobox { width:400pt; font-size:smaller; margin:10px; }
+div.smallbox { width:400pt; font-size:smaller; margin:10px; border:solid black 1px; }
+
+.boxquote {float: left; text-align: center; border: solid black 1px;font-family: Times, sans-serif; font-size: 12pt; margin: 10px;}
+
+td.googler { vertical-align:bottom; color:green; font-size:x-large}
+
+.small { font-size:smaller; }
+.right { text-align:right; }
+
+body { font-family: 'Oxygen', Verdana, serif; margin:2em; background-color: #F0F0F0; }
+
+div.explain { font-size:smaller; margin-left:40px; margin-right:40px; margin-bottom:10px; }
+
+
+summary::-webkit-details-marker {
+    color: #00ACF3;
+    font-size: 125%;
+    margin-right: 2px;
+}
+
+summary:focus {	outline-style: none; }
+article { margin-left:1em; }
+article > details > summary { font-size: 28px; margin-top: 32px; }
+article > details > summary.link { font-size: 28px; margin-top: 32px; text-decoration:underine; }
+details > p { margin-left: 36px; background-color:#f0f0f0; }
+details > div { margin-left: 36px; background-color:#f0f0f0; }
+
+details details { margin-left: 48px; }
+details details summary { font-size: 16px; }
+</style>
+
+</head>
+
+<body>
+
+<div class="container-fluid main-container">
+
+<!-- code folding -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Corporate Finance Assignment 4</h1>
+<h4 class="author"><em>Nitish Ramkumar</em></h4>
+
+</div>
+
+
+<p>For the annual dataset on earnings, cashflows and leverage ratios, we should take the necessary fundamentals from <strong>Compustat</strong>. The file <strong>COMPM.FUNDA</strong> contains all the necessary information. The earnings and cashflow data from Compustat are in the units of millions.</p>
+<p>The following formulas were used for calculation of the required information.</p>
+<p><em>Total Cashflow = Operating Cashflow + Investing Cashflow + Financing Cashflow</em></p>
+<p><em>Market Leverage Ratio = (Current Debt + Long term debt)/Total Assets</em></p>
+<p><em>Book Leverage Ratio = (Current Debt + Long term Debt)/(Current Debt + Long term debt + Common Equity)</em></p>
+<p><em>Earnings = Net Income</em></p>
+<p><strong>Sample of the resultant data</strong></p>
+<p><pre><code>
+<table><tr><th>GVKEY</th><th>Date</th><th>CFInMil</th><th>EarningsInMil</th><th>marketLRatio</th><th>bookLRatio</th><th>lpermno</th></tr>
+<tr><td>001003</td><td>1988-01-31</td><td>0.234</td><td>0.186</td><td>0.3433487</td><td>0.4188275</td><td>10031</td></tr>
+<tr><td>001003</td><td>1989-01-31</td><td>-0.173</td><td>-7.838</td><td>0.4748157</td><td>1.0257431</td><td>10031</td></tr>
+<tr><td>001003</td><td>1990-01-31</td><td>0.389</td><td>-0.221</td><td>0.4476209</td><td>1.1012412</td><td>10031</td></tr>
+<tr><td>001004</td><td>1989-05-31</td><td>-2.150</td><td>24.814</td><td>0.2693053</td><td>0.3587185</td><td>54594</td></tr>
+<tr><td>001004</td><td>1990-05-31</td><td>-0.699</td><td>25.655</td><td>0.2732156</td><td>0.3589811</td><td>54594</td></tr>
+<tr><td>001004</td><td>1991-05-31</td><td>-2.440</td><td>14.801</td><td>0.2249012</td><td>0.3060298</td><td>54594</td></tr></table>
+</code></pre></p>
+<br><br>
+<p><strong>R Code</strong></p>
+<pre><code>sql.fundamentals &lt;- &quot;SELECT GVKEY AS GVKEY, DATADATE AS Date,OANCF AS OperatingCF,
+                            IVNCF AS InvestingCF,FINCF AS FinancingCF,NI as Earnings,
+                            DLC AS CurrentDebt, DLTT AS LongTermDebt, 
+                            AT AS TotalAssets, SEQ AS CommonEq, PSTK AS LiquidationVal 
+                            FROM COMPM.FUNDA funda&quot;
+fundamentals &lt;- getData(sql.fundamentals)
+
+sql.permnoLink &lt;- &quot;SELECT GVKEY,LPERMNO FROM CRSPA.CCMXPF_LINKTABLE&quot;
+permnoLink &lt;- getData(sql.permnoLink)
+
+suppressWarnings(library(dplyr))
+
+fundamental.formatted &lt;- fundamentals %&gt;% filter(complete.cases(.)) %&gt;% mutate(cashflowInMil = OperatingCF + InvestingCF + FinancingCF, 
+marketLRatio = (CurrentDebt+LongTermDebt)/TotalAssets, bookLRatio = (CurrentDebt+LongTermDebt)/(CurrentDebt+LongTermDebt+CommonEq))
+%&gt;%select(GVKEY,Date,cashflowInMil,EarningsInMil = Earnings,marketLRatio,bookLRatio)
+
+fundamental.formatted %&gt;% left_join(permnoLink %&gt;% na.omit(),by= c(&quot;GVKEY&quot;=&quot;gvkey&quot;)) %&gt;% head</code></pre>
+
+</div>
+</body>
+</html>
