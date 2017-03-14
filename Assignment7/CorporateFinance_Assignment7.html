@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Nitish Ramkumar" />
+
+
+<title>Corporate Finance Assignment 7</title>
+
+
+
+<style type="text/css">
+pre{background-color: white;}
+pre:not([class]) {background-color: white;}
+code{white-space: pre;}
+span{font-color: green,font-size: smaller}
+
+h1 { font-size:17pt; text-align:center; color:black; }
+h2 { font-size:14pt; text-align:left; color:black; }
+h3 { font-size:11pt; text-align:left; color:black; }
+h4 { font-size: 18px;}
+h5 { font-size: 16px;}
+h6 { font-size: 12px;}
+.table th:not([align]) { text-align: left;}
+
+a { text-decoration:none; color:#3284bf; }
+a:hover { text-decoration:underline; }
+
+hr.fat { background-color:black; height:4px; }
+hr { background-color:black; height:1px; }
+li { margin-top: 1em; }	
+
+p.notice { background-color:white; font-size:10pt; border:solid black 5px; }
+
+caption { color:brown; text-decoration:underline; font-size:9pt; }
+td { padding-left:1em; padding-right:1em; }
+th { text-decoration:underline }
+table { margin-left:2em; }
+
+p.boxright { width:355px; margin-right:0px; background-color:white; font-size:10pt; float:right; padding:20px; font-size:large; vertical-align:top; }
+
+dt.big { line-height:3; font-size:large; font-weight:bolder; font-family:sans-serif;margin-top:12pt }
+dt.hili { font-size:large; font-family:Cursive; display:inline; text-decoration:underline; padding-top:1em; }
+dt.smallbold { font-size:small; font-family:Cursive; display:inline; font-weight:bold; }
+dd { margin-bottom:1ex }
+
+td.hili { font-size:x-large; font-family:cursive; margin:20px; vertical-align:top }
+
+div.smallnobox { width:400pt; font-size:smaller; margin:10px; }
+div.smallbox { width:400pt; font-size:smaller; margin:10px; border:solid black 1px; }
+
+.boxquote {float: left; text-align: center; border: solid black 1px;font-family: Times, sans-serif; font-size: 12pt; margin: 10px;}
+
+td.googler { vertical-align:bottom; color:green; font-size:x-large}
+
+.small { font-size:smaller; }
+.right { text-align:right; }
+
+body { font-family: 'Oxygen', Verdana, serif; margin:2em; background-color: #F0F0F0; }
+
+div.explain { font-size:smaller; margin-left:40px; margin-right:40px; margin-bottom:10px; }
+
+
+summary::-webkit-details-marker {
+    color: #00ACF3;
+    font-size: 125%;
+    margin-right: 2px;
+}
+
+summary:focus {	outline-style: none; }
+article { margin-left:1em; }
+article > details > summary { font-size: 28px; margin-top: 32px; }
+article > details > summary.link { font-size: 28px; margin-top: 32px; text-decoration:underine; }
+details > p { margin-left: 36px; background-color:#f0f0f0; }
+details > div { margin-left: 36px; background-color:#f0f0f0; }
+
+details details { margin-left: 48px; }
+details details summary { font-size: 16px; }
+
+</style>
+
+
+</head>
+
+<body>
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<!-- code folding -->
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Corporate Finance Assignment 7</h1>
+<h4 class="author"><em>Nitish Ramkumar</em></h4>
+
+</div>
+
+
+<div id="fundamentals" class="section level2">
+<h2>Fundamentals</h2>
+<p>Get the necessary fundamental data for P/E ratio, 1/Price and Accruals from COMPM.FUNDA file in COMPUSTAT.</p>
+<p>Accruals = <span class="math inline">\(\Delta Current Assets - \Delta Cash - \Delta Current Liabilites + \Delta Current Debt + \Delta Tax Payable - Depreciation\)</span>.</p>
+<p>Sample fundamentals data for Microsoft are as below</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">GVKEY</th>
+<th align="left">Date</th>
+<th align="right">PriceInv</th>
+<th align="right">PE</th>
+<th align="right">Accruals</th>
+<th align="right">lpermno</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">012141</td>
+<td align="left">1988-06-30</td>
+<td align="right">0.0149254</td>
+<td align="right">0.5407234</td>
+<td align="right">241.161</td>
+<td align="right">10107</td>
+</tr>
+<tr class="even">
+<td align="left">012141</td>
+<td align="left">1989-06-30</td>
+<td align="right">0.0188679</td>
+<td align="right">0.3107808</td>
+<td align="right">-111.045</td>
+<td align="right">10107</td>
+</tr>
+<tr class="odd">
+<td align="left">012141</td>
+<td align="left">1990-06-30</td>
+<td align="right">0.0131579</td>
+<td align="right">0.2722197</td>
+<td align="right">116.121</td>
+<td align="right">10107</td>
+</tr>
+<tr class="even">
+<td align="left">012141</td>
+<td align="left">1991-06-30</td>
+<td align="right">0.0146789</td>
+<td align="right">0.1472199</td>
+<td align="right">-21.472</td>
+<td align="right">10107</td>
+</tr>
+<tr class="odd">
+<td align="left">012141</td>
+<td align="left">1992-06-30</td>
+<td align="right">0.0142857</td>
+<td align="right">0.0988617</td>
+<td align="right">129.860</td>
+<td align="right">10107</td>
+</tr>
+<tr class="even">
+<td align="left">012141</td>
+<td align="left">1993-06-30</td>
+<td align="right">0.0113636</td>
+<td align="right">0.0923400</td>
+<td align="right">650.322</td>
+<td align="right">10107</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="returns" class="section level2">
+<h2>Returns</h2>
+<p>Annual returns Data (from assignment 3) for Microsoft are as below.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">date</th>
+<th align="right">PERMNO</th>
+<th align="left">CUSIP</th>
+<th align="left">TICKER</th>
+<th align="right">AnnualReturn</th>
+<th align="right">MarketCap</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">1987-12-31</td>
+<td align="right">10107</td>
+<td align="left">59491810</td>
+<td align="left">MSFT</td>
+<td align="right">1.2487047</td>
+<td align="right">2649604</td>
+</tr>
+<tr class="even">
+<td align="left">1988-12-31</td>
+<td align="right">10107</td>
+<td align="left">59491810</td>
+<td align="left">MSFT</td>
+<td align="right">-0.0184332</td>
+<td align="right">2959193</td>
+</tr>
+<tr class="odd">
+<td align="left">1989-12-31</td>
+<td align="right">10107</td>
+<td align="left">59491810</td>
+<td align="left">MSFT</td>
+<td align="right">0.6338028</td>
+<td align="right">3537933</td>
+</tr>
+<tr class="even">
+<td align="left">1990-12-31</td>
+<td align="right">10107</td>
+<td align="left">59491810</td>
+<td align="left">MSFT</td>
+<td align="right">0.7298851</td>
+<td align="right">7154445</td>
+</tr>
+<tr class="odd">
+<td align="left">1991-12-31</td>
+<td align="right">10107</td>
+<td align="left">59491810</td>
+<td align="left">MSFT</td>
+<td align="right">1.2176080</td>
+<td align="right">13992745</td>
+</tr>
+<tr class="even">
+<td align="left">1992-12-31</td>
+<td align="right">10107</td>
+<td align="left">59491810</td>
+<td align="left">MSFT</td>
+<td align="right">0.1511236</td>
+<td align="right">21764556</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="fama-macbeth" class="section level2">
+<h2>Fama Macbeth</h2>
+<p>Now join the data and perform Fama MacBeth regression. For Fama MacBeth regression, it is a two step regression 1) Time Series regression within each stock against the four factors (MarketCap, 1/Price, PE Ratio, Accruals) 2) With the betas out of the time series regression, perform another regression with the average of returns for each stock and find the price of risk of factor. The price of risk of the 4 factors are roughly</p>
+<table>
+<thead>
+<tr class="header">
+<th align="right">Lambda_MarketCap</th>
+<th align="right">Lambda_PriceInverse</th>
+<th align="right">Lambda_PERatio</th>
+<th align="right">Lambda_AccrualsPriceAdjusted</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">4.724463</td>
+<td align="right">6.5e-06</td>
+<td align="right">7.41e-05</td>
+<td align="right">-0.0002116</td>
+</tr>
+</tbody>
+</table>
+<p>The differences will be significant as we are comparing wrong periods of data. Some of the factors which predict future returns reliably are Dividends/Price ratio, yield spread (difference between 10 year and 1 year interest rates)</p>
+</div>
+<div id="r-code" class="section level2">
+<h2>R Code</h2>
+<pre class="r"><code>library(rJava)
+options(java.parameters = '-Xmx4g')
+library(RJDBC)
+  
+sasPath &lt;- &quot;C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers&quot;
+sasCore &lt;- paste0(sasPath, &quot;\\sas.core.jar&quot;)
+sasDriver &lt;- paste0(sasPath, &quot;\\sas.intrnet.javatools.jar&quot;)
+.jinit()
+.jaddClassPath(c(sasCore, sasDriver))
+drv &lt;- JDBC(&quot;com.sas.net.sharenet.ShareNetDriver&quot;, sasDriver, identifier.quote=&quot;&quot;)
+wrds &lt;- dbConnect(drv, &quot;jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/&quot;, user, pass)
+
+# Function to get data #
+getData &lt;- function(sql, n = -1){
+  #setup connection
+  res &lt;- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData &lt;- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+
+#DATA RETRIEVAL
+sql.stockdata &lt;- &quot;SELECT date, CUSIP, PERMNO, (PRC*SHROUT) AS MARKETCAP, RET FROM CRSPQ.MSF ORDER BY PERMNO,date&quot;
+sql.stocknames &lt;- &quot;SELECT PERMNO, NAMEDT, NAMEENDT, CUSIP,TICKER FROM CRSPQ.DSENAMES&quot;
+stock.data &lt;- getData(sql.stockdata)
+stock.names &lt;- getData(sql.stocknames)
+
+#CONVERT DATA INTO ANNUAL AND GET TICKER
+suppressWarnings(library(dplyr))
+
+#Annualize data returns 
+stock.annualReturns &lt;- stock.data %&gt;%mutate(year = format(as.Date(DATE), &quot;%Y&quot;)) %&gt;% group_by(PERMNO,year) %&gt;% do(data.frame(AnnualReturn = prod(1+.$RET,na.rm = TRUE)-1,MarketCap = mean(.$MARKETCAP))) %&gt;% mutate(date = as.Date(paste(year,&quot;12&quot;,&quot;31&quot;,sep = &quot;/&quot;)))
+
+#Join and get ticker 
+stock.annualReturns.WithTicker &lt;- stock.annualReturns %&gt;% left_join(stock.names) %&gt;% filter((date&gt;=as.Date(NAMEDT) &amp; date &lt;= as.Date(NAMEENDT)) | (as.Date(paste(year,&quot;01&quot;,&quot;01&quot;,sep = &quot;/&quot;)) &gt;=as.Date(NAMEDT) &amp; as.Date(paste(year,&quot;01&quot;,&quot;01&quot;,sep = &quot;/&quot;)) &lt;= as.Date(NAMEENDT)))
+
+#Select necessary fields
+stock.annualReturns.WithTicker.Final &lt;- as.data.frame(stock.annualReturns.WithTicker)[,c(&quot;date&quot;,&quot;PERMNO&quot;,&quot;CUSIP&quot;,&quot;TICKER&quot;,&quot;AnnualReturn&quot;,&quot;MarketCap&quot;)]
+stock.returns &lt;- stock.annualReturns.WithTicker.Final%&gt;%filter(complete.cases(.))
+
+#Load returns and fundamental data
+sql.fundamentals &lt;- &quot;SELECT GVKEY AS GVKEY, DATADATE AS Date, NI AS Earnings,PRCC_F AS Price,
+                            ACT AS CurAssets,CH AS Cash,LCT AS CurLiabilities,DLC AS CurDebt,
+                            TXP AS IncTxPayable,DP AS Deprectn
+                            FROM COMPM.FUNDA funda&quot;
+fundamentals &lt;- getData(sql.fundamentals)
+fundamentals.formatted &lt;- fundamentals%&gt;%filter(complete.cases(.))%&gt;%
+                          mutate(CurAssetsCh = CurAssets - lag(CurAssets),
+                                 CashCh = Cash - lag(Cash),
+                                 CurLiabCh = CurLiabilities - lag(CurLiabilities),
+                                 CurDebtCh = CurDebt - lag(CurDebt),
+                                 TxpCh = IncTxPayable - lag(IncTxPayable))%&gt;%
+                          mutate(PriceInv = 1/Price,PE = Price/Earnings,
+                          Accruals=CurAssetsCh-CashCh-CurLiabCh+CurDebtCh+TxpCh-Deprectn)%&gt;%
+                          select(GVKEY,Date,PriceInv,PE,Accruals)                        
+                                                  
+sql.permnoLink &lt;- &quot;SELECT GVKEY,LPERMNO FROM CRSPA.CCMXPF_LINKTABLE&quot;
+permnoLink &lt;- getData(sql.permnoLink)
+
+fund.Complete &lt;- fundamentals.formatted %&gt;% left_join(permnoLink %&gt;% na.omit(),by= c(&quot;GVKEY&quot;=&quot;gvkey&quot;))%&gt;%filter(complete.cases(.))
+
+##Returns
+stock.returns%&gt;%filter(PERMNO==&quot;10107&quot;)
+##Fundamentals
+fund.Complete%&gt;%filter(lpermno==&quot;10107&quot;)
+
+load(&quot;C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment7/HW3Data.RData&quot;)
+
+stock.returns &lt;- stock.returns%&gt;%mutate(dateReq = as.numeric(format(date,&quot;%Y&quot;)))
+fund.format &lt;- fund.Complete%&gt;%mutate(Date=as.Date(Date))%&gt;%
+                                 mutate(DateReq=as.numeric(format(Date,&quot;%Y&quot;))-1)%&gt;%
+                                 distinct%&gt;%filter(is.finite(PE))
+
+fund.format%&gt;%filter(lpermno==&quot;21582&quot;)
+stock.returns%&gt;%filter(PERMNO==&quot;21582&quot;)
+
+finaldata &lt;- stock.returns%&gt;%
+                left_join(fund.format,by =c(&quot;PERMNO&quot;=&quot;lpermno&quot;,&quot;dateReq&quot;=&quot;DateReq&quot;))%&gt;%
+                select(date,PERMNO,AnnualReturn,MarketCap,PriceInv,PE,Accruals)%&gt;%
+                filter(complete.cases(.))
+
+famaMcb.TSReg &lt;- finaldata %&gt;% group_by(PERMNO)%&gt;%
+                 do(data.frame(avgRet = mean(.$AnnualReturn),
+                               betas=matrix((lm(.$AnnualReturn~.$MarketCap + .$PriceInv +
+                                                .$PE + .$Accruals))$coefficients,nrow=1)))%&gt;%
+                na.omit%&gt;%as.data.frame
+
+lambdas &lt;- lm(famaMcb.TSReg$avgRet~(famaMcb.TSReg$betas.2+famaMcb.TSReg$betas.3+famaMcb.TSReg$betas.4+famaMcb.TSReg$betas.5-1))$coefficients
+names(lambdas) &lt;- c(&quot;Lambda_MarketCap&quot;,&quot;Lambda_PriceInverse&quot;,&quot;Lambda_PERatio&quot;,&quot;Lambda_Accruals&quot;)
+lambdas</code></pre>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

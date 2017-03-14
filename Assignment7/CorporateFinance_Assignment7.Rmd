@@ -1,0 +1,230 @@
+---
+title: "Corporate Finance Assignment 7"
+author: "Nitish Ramkumar"
+output: html_document
+---
+```{r echo=FALSE,eval=FALSE}
+library(rJava)
+options(java.parameters = '-Xmx4g')
+library(RJDBC)
+  
+sasPath <- "C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers"
+sasCore <- paste0(sasPath, "\\sas.core.jar")
+sasDriver <- paste0(sasPath, "\\sas.intrnet.javatools.jar")
+.jinit()
+.jaddClassPath(c(sasCore, sasDriver))
+drv <- JDBC("com.sas.net.sharenet.ShareNetDriver", sasDriver, identifier.quote="")
+wrds <- dbConnect(drv, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+
+#DATA RETRIEVAL
+sql.stockdata <- "SELECT date, CUSIP, PERMNO, (PRC*SHROUT) AS MARKETCAP, RET FROM CRSPQ.MSF ORDER BY PERMNO,date"
+sql.stocknames <- "SELECT PERMNO, NAMEDT, NAMEENDT, CUSIP,TICKER FROM CRSPQ.DSENAMES"
+stock.data <- getData(sql.stockdata)
+stock.names <- getData(sql.stocknames)
+
+#CONVERT DATA INTO ANNUAL AND GET TICKER
+suppressWarnings(library(dplyr))
+
+#Annualize data returns 
+stock.annualReturns <- stock.data %>%mutate(year = format(as.Date(DATE), "%Y")) %>% group_by(PERMNO,year) %>% do(data.frame(AnnualReturn = prod(1+.$RET,na.rm = TRUE)-1,MarketCap = mean(.$MARKETCAP))) %>% mutate(date = as.Date(paste(year,"12","31",sep = "/")))
+
+#Join and get ticker 
+stock.annualReturns.WithTicker <- stock.annualReturns %>% left_join(stock.names) %>% filter((date>=as.Date(NAMEDT) & date <= as.Date(NAMEENDT)) | (as.Date(paste(year,"01","01",sep = "/")) >=as.Date(NAMEDT) & as.Date(paste(year,"01","01",sep = "/")) <= as.Date(NAMEENDT)))
+
+#Select necessary fields
+stock.annualReturns.WithTicker.Final <- as.data.frame(stock.annualReturns.WithTicker)[,c("date","PERMNO","CUSIP","TICKER","AnnualReturn","MarketCap")]
+stock.returns <- stock.annualReturns.WithTicker.Final%>%filter(complete.cases(.))
+
+```
+
+##Fundamentals  
+
+Get the necessary fundamental data for P/E ratio, 1/Price and Accruals from COMPM.FUNDA file in COMPUSTAT.  
+  
+ Accruals = $\Delta Current Assets - \Delta Cash - \Delta Current Liabilites + \Delta Current Debt + \Delta Tax Payable - Depreciation$.  
+   
+Sample fundamentals data for Microsoft are as below   
+
+```{r eval=FALSE,echo=FALSE}
+#Load returns and fundamental data
+sql.fundamentals <- "SELECT GVKEY AS GVKEY, DATADATE AS Date, NI AS Earnings,PRCC_F AS Price,
+                            ACT AS CurAssets,CH AS Cash,LCT AS CurLiabilities,DLC AS CurDebt,
+                            TXP AS IncTxPayable,DP AS Deprectn
+                            FROM COMPM.FUNDA funda"
+fundamentals <- getData(sql.fundamentals)
+fundamentals.formatted <- fundamentals%>%filter(complete.cases(.))%>%
+                          mutate(CurAssetsCh = CurAssets - lag(CurAssets),
+                                 CashCh = Cash - lag(Cash),
+                                 CurLiabCh = CurLiabilities - lag(CurLiabilities),
+                                 CurDebtCh = CurDebt - lag(CurDebt),
+                                 TxpCh = IncTxPayable - lag(IncTxPayable))%>%
+                          mutate(PriceInv = 1/Price,PE = Price/Earnings,
+                          Accruals=CurAssetsCh-CashCh-CurLiabCh+CurDebtCh+TxpCh-Deprectn)%>%
+                          select(GVKEY,Date,PriceInv,PE,Accruals)                        
+                                                  
+sql.permnoLink <- "SELECT GVKEY,LPERMNO FROM CRSPA.CCMXPF_LINKTABLE"
+permnoLink <- getData(sql.permnoLink)
+
+fund.Complete <- fundamentals.formatted %>% left_join(permnoLink %>% na.omit(),by= c("GVKEY"="gvkey"))%>%filter(complete.cases(.))
+```
+
+```{r echo=FALSE}
+suppressMessages(library(knitr))
+suppressMessages(library(dplyr))
+load("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment7/HW3Data.RData")
+kable(fund.Complete%>%filter(lpermno=="10107")%>%head)
+```
+
+##Returns  
+  
+Annual returns Data (from assignment 3) for Microsoft are as below.
+```{r echo=FALSE}
+kable(stock.returns%>%filter(PERMNO=="10107")%>%head)
+```
+
+
+##Fama Macbeth  
+
+Now join the data and perform Fama MacBeth regression. For Fama MacBeth regression, it is a two step regression
+1) Time Series regression within each stock against the four factors (MarketCap, 1/Price, PE Ratio, Accruals)
+2) With the betas out of the time series regression, perform another regression with the average of returns for each stock and find the price of risk of factor. The price of risk of the 4 factors are roughly
+```{r echo=FALSE}
+stock.returns <- stock.returns%>%mutate(dateReq = as.numeric(format(date,"%Y")))
+fund.format <- fund.Complete%>%mutate(Date=as.Date(Date))%>%
+                                 mutate(DateReq=as.numeric(format(Date,"%Y"))-1)%>%
+                                 mutate(PriceAdjAccruals = Accruals*PriceInv)%>% 
+                                 distinct%>%filter(is.finite(PE))
+
+finaldata <- stock.returns%>%
+                left_join(fund.format,by =c("PERMNO"="lpermno","dateReq"="DateReq"))%>%
+                select(date,PERMNO,AnnualReturn,MarketCap,PriceInv,PE,PriceAdjAccruals)%>%
+                filter(complete.cases(.))
+
+famaMcb.TSReg <- finaldata %>% group_by(PERMNO)%>%
+                 do(data.frame(avgRet = mean(.$AnnualReturn),
+                               betas=matrix((lm(.$AnnualReturn~.$MarketCap + .$PriceInv +
+                                                .$PE+.$PriceAdjAccruals))
+                                            $coefficients,nrow=1)))%>%
+                 na.omit%>%as.data.frame
+
+lambdas <- t(lm(famaMcb.TSReg$avgRet~(famaMcb.TSReg$betas.2+famaMcb.TSReg$betas.3+famaMcb.TSReg$betas.4+famaMcb.TSReg$betas.5-1))$coefficients)
+colnames(lambdas) <- c("Lambda_MarketCap","Lambda_PriceInverse","Lambda_PERatio","Lambda_AccrualsPriceAdjusted")
+kable(lambdas)
+```
+
+The differences will be significant as we are comparing wrong periods of data.
+Some of the factors which predict future returns reliably are Dividends/Price ratio, yield spread (difference between 10 year and 1 year interest rates)  
+  
+##R Code 
+```{r eval=FALSE}
+library(rJava)
+options(java.parameters = '-Xmx4g')
+library(RJDBC)
+  
+sasPath <- "C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers"
+sasCore <- paste0(sasPath, "\\sas.core.jar")
+sasDriver <- paste0(sasPath, "\\sas.intrnet.javatools.jar")
+.jinit()
+.jaddClassPath(c(sasCore, sasDriver))
+drv <- JDBC("com.sas.net.sharenet.ShareNetDriver", sasDriver, identifier.quote="")
+wrds <- dbConnect(drv, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+
+#DATA RETRIEVAL
+sql.stockdata <- "SELECT date, CUSIP, PERMNO, (PRC*SHROUT) AS MARKETCAP, RET FROM CRSPQ.MSF ORDER BY PERMNO,date"
+sql.stocknames <- "SELECT PERMNO, NAMEDT, NAMEENDT, CUSIP,TICKER FROM CRSPQ.DSENAMES"
+stock.data <- getData(sql.stockdata)
+stock.names <- getData(sql.stocknames)
+
+#CONVERT DATA INTO ANNUAL AND GET TICKER
+suppressWarnings(library(dplyr))
+
+#Annualize data returns 
+stock.annualReturns <- stock.data %>%mutate(year = format(as.Date(DATE), "%Y")) %>% group_by(PERMNO,year) %>% do(data.frame(AnnualReturn = prod(1+.$RET,na.rm = TRUE)-1,MarketCap = mean(.$MARKETCAP))) %>% mutate(date = as.Date(paste(year,"12","31",sep = "/")))
+
+#Join and get ticker 
+stock.annualReturns.WithTicker <- stock.annualReturns %>% left_join(stock.names) %>% filter((date>=as.Date(NAMEDT) & date <= as.Date(NAMEENDT)) | (as.Date(paste(year,"01","01",sep = "/")) >=as.Date(NAMEDT) & as.Date(paste(year,"01","01",sep = "/")) <= as.Date(NAMEENDT)))
+
+#Select necessary fields
+stock.annualReturns.WithTicker.Final <- as.data.frame(stock.annualReturns.WithTicker)[,c("date","PERMNO","CUSIP","TICKER","AnnualReturn","MarketCap")]
+stock.returns <- stock.annualReturns.WithTicker.Final%>%filter(complete.cases(.))
+
+#Load returns and fundamental data
+sql.fundamentals <- "SELECT GVKEY AS GVKEY, DATADATE AS Date, NI AS Earnings,PRCC_F AS Price,
+                            ACT AS CurAssets,CH AS Cash,LCT AS CurLiabilities,DLC AS CurDebt,
+                            TXP AS IncTxPayable,DP AS Deprectn
+                            FROM COMPM.FUNDA funda"
+fundamentals <- getData(sql.fundamentals)
+fundamentals.formatted <- fundamentals%>%filter(complete.cases(.))%>%
+                          mutate(CurAssetsCh = CurAssets - lag(CurAssets),
+                                 CashCh = Cash - lag(Cash),
+                                 CurLiabCh = CurLiabilities - lag(CurLiabilities),
+                                 CurDebtCh = CurDebt - lag(CurDebt),
+                                 TxpCh = IncTxPayable - lag(IncTxPayable))%>%
+                          mutate(PriceInv = 1/Price,PE = Price/Earnings,
+                          Accruals=CurAssetsCh-CashCh-CurLiabCh+CurDebtCh+TxpCh-Deprectn)%>%
+                          select(GVKEY,Date,PriceInv,PE,Accruals)                        
+                                                  
+sql.permnoLink <- "SELECT GVKEY,LPERMNO FROM CRSPA.CCMXPF_LINKTABLE"
+permnoLink <- getData(sql.permnoLink)
+
+fund.Complete <- fundamentals.formatted %>% left_join(permnoLink %>% na.omit(),by= c("GVKEY"="gvkey"))%>%filter(complete.cases(.))
+
+##Returns
+stock.returns%>%filter(PERMNO=="10107")
+##Fundamentals
+fund.Complete%>%filter(lpermno=="10107")
+
+load("C:/_UCLA/237A_CorporateFinance/Assignments/MFE_237A_CorpFinance/Assignment7/HW3Data.RData")
+
+stock.returns <- stock.returns%>%mutate(dateReq = as.numeric(format(date,"%Y")))
+fund.format <- fund.Complete%>%mutate(Date=as.Date(Date))%>%
+                                 mutate(DateReq=as.numeric(format(Date,"%Y"))-1)%>%
+                                 distinct%>%filter(is.finite(PE))
+
+fund.format%>%filter(lpermno=="21582")
+stock.returns%>%filter(PERMNO=="21582")
+
+finaldata <- stock.returns%>%
+                left_join(fund.format,by =c("PERMNO"="lpermno","dateReq"="DateReq"))%>%
+                select(date,PERMNO,AnnualReturn,MarketCap,PriceInv,PE,Accruals)%>%
+                filter(complete.cases(.))
+
+famaMcb.TSReg <- finaldata %>% group_by(PERMNO)%>%
+                 do(data.frame(avgRet = mean(.$AnnualReturn),
+                               betas=matrix((lm(.$AnnualReturn~.$MarketCap + .$PriceInv +
+                                                .$PE + .$Accruals))$coefficients,nrow=1)))%>%
+                na.omit%>%as.data.frame
+
+lambdas <- lm(famaMcb.TSReg$avgRet~(famaMcb.TSReg$betas.2+famaMcb.TSReg$betas.3+famaMcb.TSReg$betas.4+famaMcb.TSReg$betas.5-1))$coefficients
+names(lambdas) <- c("Lambda_MarketCap","Lambda_PriceInverse","Lambda_PERatio","Lambda_Accruals")
+lambdas
+```
+
